@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrafficFlow Game - Isometric City</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family:'Outfit',sans-serif;
+    background:#f0f9ff;
+    height:100vh;
+    overflow:hidden;
+  }
+  .layout {
+    display:flex;
+    height:100vh;
+  }
+  #stage-wrap {
+    flex:1;
+    position:relative;
+    background:linear-gradient(180deg,#bfe3ff 0%,#eaf6ff 60%,#eaf6ff 100%);
+    overflow:hidden;
+  }
+  #stage {
+    width:100%;
+    height:100%;
+    display:block;
+  }
+  /* HUD overlay on canvas */
+  .hud {
+    position:absolute;
+    top:18px; left:18px;
+    display:flex;
+    gap:14px;
+    z-index:10;
+  }
+  .hud-pill {
+    background:rgba(255,255,255,0.92);
+    backdrop-filter:blur(8px);
+    color:#1e293b;
+    border-radius:14px;
+    padding:10px 18px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    box-shadow:0 8px 20px rgba(0,122,255,0.15);
+    border:1px solid rgba(0,122,255,0.2);
+  }
+  .hud-pill .ico { font-size:20px; }
+  .hud-pill .val { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:18px; }
+  .hud-pill .lbl { font-size:10px; opacity:0.7; text-transform:uppercase; letter-spacing:1px; color:#64748b; }
+  .hud-pill .stack { display:flex; flex-direction:column; line-height:1.1; }
+  #timer-pill.warning .val { color:#ef4444; animation:blink 1s infinite; }
+  @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+  .top-actions {
+    position:absolute;
+    top:18px; right:18px;
+    display:flex;
+    gap:10px;
+    z-index:10;
+  }
+  .icon-btn {
+    width:44px;height:44px;
+    border-radius:12px;
+    border:none;
+    background:rgba(255,255,255,0.92);
+    color:#007aff;
+    font-size:18px;
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:0.2s;
+    box-shadow:0 8px 20px rgba(0,122,255,0.15);
+  }
+  .icon-btn:hover { background:#ffffff; color:#0ea5e9; transform:translateY(-2px); }
+
+  /* Side control panel */
+  #panel {
+    width:340px;
+    background:#ffffff;
+    color:#1e293b;
+    padding:24px 20px;
+    display:flex;
+    flex-direction:column;
+    gap:18px;
+    overflow-y:auto;
+    border-left:1px solid #e0e7ff;
+  }
+  #panel::-webkit-scrollbar { width:5px; }
+  #panel::-webkit-scrollbar-thumb { background:#007aff; border-radius:10px; }
+
+  .brand {
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:800;
+    font-size:22px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:4px;
+  }
+  .brand span { color:#0ea5e9; }
+
+  .panel-title {
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:2px;
+    color:#0ea5e9;
+    font-weight:800;
+  }
+
+  .signal-grid {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  .mode-pill {
+    font-size:10px;
+    font-weight:700;
+    color:#0ea5e9;
+    background:rgba(14,165,233,0.15);
+    padding:3px 8px;
+    border-radius:8px;
+    letter-spacing:0;
+    text-transform:none;
+  }
+  .mode-pill.manual {
+    color:#fbbf24;
+    background:rgba(251,191,36,0.18);
+  }
+  .vehicle-counter {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  .vehicle-type {
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:10px 12px;
+    background:#f0f9ff;
+    border:1px solid #bfdbfe;
+    border-radius:10px;
+    font-size:13px;
+    color:#1e293b;
+  }
+  .vehicle-type .ico {
+    font-size:18px;
+  }
+  .vehicle-type b {
+    font-family:'Space Grotesk',sans-serif;
+    color:#007aff;
+    font-weight:800;
+  }
+
+  .reset-auto-btn {
+    background:#1e293b;
+    color:#0ea5e9;
+    border:1px solid #334155;
+    width:24px;
+    height:24px;
+    border-radius:6px;
+    cursor:pointer;
+    font-size:13px;
+    line-height:1;
+    padding:0;
+  }
+  .reset-auto-btn:hover {
+    background:#0ea5e9;
+    color:#fff;
+  }
+  .signal-card {
+    background:#f0f9ff;
+    border-radius:14px;
+    padding:14px;
+    border:2px solid #bfdbfe;
+    transition:0.2s;
+  }
+  .signal-card.is-green { border-color:#22c55e; background:#f0fdf4; }
+  .signal-card.is-yellow { border-color:#eab308; background:#fffbeb; }
+  .signal-card.is-red { border-color:#ef4444; background:#fef2f2; }
+  .signal-card h4 {
+    font-size:12px;
+    color:#64748b;
+    text-transform:uppercase;
+    letter-spacing:1px;
+    margin-bottom:8px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .signal-card .state-badge {
+    display:inline-block;
+    font-size:10px;
+    font-weight:800;
+    padding:4px 10px;
+    border-radius:6px;
+    margin-bottom:10px;
+  }
+  .state-badge.RED { background:#fee2e2; color:#991b1b; }
+  .state-badge.YELLOW { background:#fef3c7; color:#92400e; }
+  .state-badge.GREEN { background:#dcfce7; color:#166534; }
+
+  .slider-row {
+    display:flex; align-items:center; gap:8px;
+  }
+  .slider-row input[type=range] {
+    flex:1;
+    accent-color:#0ea5e9;
+  }
+  .slider-row .num {
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:13px;
+    min-width:32px;
+    text-align:right;
+    color:#007aff;
+  }
+
+  .queue-bar-wrap {
+    margin-top:8px;
+    background:#f0f9ff;
+    border-radius:6px;
+    height:6px;
+    overflow:hidden;
+  }
+  .queue-bar {
+    height:100%;
+    background:linear-gradient(90deg,#0ea5e9,#22c55e);
+    width:0%;
+    transition:width 0.3s;
+  }
+  .queue-bar.danger { background:linear-gradient(90deg,#eab308,#ef4444); }
+
+  .stats-box {
+    background:#f0f9ff;
+    border-radius:14px;
+    padding:16px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    border:1px solid #bfdbfe;
+  }
+  .stat-row {
+    display:flex; justify-content:space-between; font-size:13px; color:#64748b;
+  }
+  .stat-row b { font-family:'Space Grotesk',sans-serif; color:#007aff; }
+
+  .toggle-row {
+    display:flex; justify-content:space-between; align-items:center;
+    background:#f0f9ff; padding:12px 14px; border-radius:12px; border:1px solid #bfdbfe;
+  }
+  .toggle {
+    width:42px;height:24px;border-radius:12px;background:#e0e7ff;position:relative;cursor:pointer;transition:0.2s;
+  }
+  .toggle.on { background:#22c55e; }
+  .toggle .dot { position:absolute; top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:0.2s; }
+  .toggle.on .dot { left:20px; }
+
+  select.scenario {
+    width:100%;
+    padding:10px;
+    border-radius:10px;
+    border:1px solid #bfdbfe;
+    background:#ffffff;
+    color:#1e293b;
+    font-family:'Outfit',sans-serif;
+    font-size:13px;
+  }
+
+  .btn-construction {
+    width:100%;
+    padding:12px;
+    border-radius:12px;
+    border:2px dashed #eab308;
+    background:#fffbeb;
+    color:#92400e;
+    font-weight:700;
+    cursor:pointer;
+    transition:0.2s;
+  }
+  .btn-construction:hover { background:#fef3c7; }
+  .btn-construction.active { background:#eab308; color:#fff; }
+
+  /* Pause overlay */
+  #pause-overlay {
+    position:absolute; inset:0;
+    background:rgba(255,255,255,0.95);
+    backdrop-filter:blur(6px);
+    display:none;
+    align-items:center;justify-content:center;
+    z-index:20;
+    flex-direction:column;
+    color:#1e293b;
+    gap:16px;
+  }
+  #pause-overlay.active { display:flex; }
+  #pause-overlay h2 { font-family:'Space Grotesk',sans-serif; font-size:36px; }
+  .pause-btns { display:flex; gap:12px; }
+  .pause-btns button {
+    padding:12px 28px; border:none; border-radius:10px; font-weight:700; cursor:pointer; font-family:'Outfit',sans-serif;
+  }
+  #resume-btn { background:#22c55e; color:#fff; }
+  #restart-btn { background:#ef4444; color:#fff; }
+
+  /* Settings overlay */
+  #settings-overlay {
+    position:absolute; inset:0;
+    background:rgba(15,23,42,0.9);
+    backdrop-filter:blur(8px);
+    display:none;
+    align-items:center;justify-content:center;
+    z-index:25;
+  }
+  #settings-overlay.active { display:flex; }
+  .settings-card {
+    background:#1e293b; border-radius:20px; padding:32px; width:380px; color:#fff;
+  }
+  .settings-card h2 { font-family:'Space Grotesk',sans-serif; margin-bottom:20px; color:#0ea5e9; }
+  .settings-card .toggle-row { margin-bottom:12px; }
+  .settings-card .close-btn {
+    width:100%; margin-top:16px; padding:12px; border:none; border-radius:10px; background:#0ea5e9; color:#fff; font-weight:700; cursor:pointer;
+  }
+
+  @media (max-width:900px) {
+    .layout { flex-direction:column; }
+    #panel { width:100%; height:38vh; }
+    #stage-wrap { height:62vh; }
+    .signal-grid { grid-template-columns:1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <div id="stage-wrap">
+    <canvas id="stage"></canvas>
+
+    <div class="hud">
+      <div class="hud-pill" id="vehicle-pill">
+        <span class="ico">🚗</span>
+        <div class="stack"><span class="lbl">On Road</span><span class="val" id="hud-vehicles">0</span></div>
+      </div>
+      <div class="hud-pill" id="passed-pill">
+        <span class="ico">✅</span>
+        <div class="stack"><span class="lbl">Passed</span><span class="val" id="hud-passed">0</span></div>
+      </div>
+      <div class="hud-pill" id="timer-pill">
+        <span class="ico">⏱️</span>
+        <div class="stack"><span class="lbl">Time Left</span><span class="val" id="hud-timer">15:00</span></div>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <button class="icon-btn" id="pause-toggle" title="Pause">⏸</button>
+      <button class="icon-btn" id="settings-toggle" title="Settings">⚙️</button>
+    </div>
+
+    <div id="pause-overlay">
+      <h2>⏸ PAUSED</h2>
+      <div class="pause-btns">
+        <button id="resume-btn">▶ Resume</button>
+        <button id="restart-btn">🔄 Restart</button>
+      </div>
+    </div>
+
+    <div id="settings-overlay">
+      <div class="settings-card">
+        <h2>⚙️ Settings</h2>
+        <div class="toggle-row">
+          <span>🔊 Sound Effects</span>
+          <div class="toggle on" id="toggle-sfx"><div class="dot"></div></div>
+        </div>
+        <div class="toggle-row">
+          <span>📐 Show Grid</span>
+          <div class="toggle" id="toggle-grid"><div class="dot"></div></div>
+        </div>
+        <button class="close-btn" id="close-settings">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel">
+    <div class="brand">🚦 TrafficFlow <span>City</span></div>
+
+    <div>
+      <div class="panel-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+        <span>Signal Timing</span>
+        <span style="display:flex; gap:6px; align-items:center;">
+          <span id="mode-indicator" class="mode-pill">⚙️ Auto</span>
+          <button id="reset-auto-btn" class="reset-auto-btn" title="Back to automatic cycle">↺</button>
+        </span>
+      </div>
+      <div style="font-size:11px; color:#94a3b8; margin-bottom:10px; line-height:1.4;">
+        💡 Klik lampu lalu lintas di peta untuk ganti hijau manual
+      </div>
+      <div class="signal-grid">
+        <div class="signal-card" id="card-N">
+          <h4>🔼 North</h4>
+          <span class="state-badge RED" id="badge-N">RED</span>
+          <div class="slider-row">
+            <input type="range" min="10" max="60" value="30" id="slider-N">
+            <span class="num" id="num-N">30s</span>
+          </div>
+          <div style="font-size:12px; color:#0ea5e9; font-weight:700; margin:8px 0 4px 0;"><b id="queue-count-N">0</b> waiting</div>
+          <div class="queue-bar-wrap"><div class="queue-bar" id="queue-N"></div></div>
+        </div>
+        <div class="signal-card" id="card-S">
+          <h4>🔽 South</h4>
+          <span class="state-badge RED" id="badge-S">RED</span>
+          <div class="slider-row">
+            <input type="range" min="10" max="60" value="30" id="slider-S">
+            <span class="num" id="num-S">30s</span>
+          </div>
+          <div style="font-size:12px; color:#0ea5e9; font-weight:700; margin:8px 0 4px 0;"><b id="queue-count-S">0</b> waiting</div>
+          <div class="queue-bar-wrap"><div class="queue-bar" id="queue-S"></div></div>
+        </div>
+        <div class="signal-card" id="card-E">
+          <h4>▶️ East</h4>
+          <span class="state-badge RED" id="badge-E">RED</span>
+          <div class="slider-row">
+            <input type="range" min="10" max="60" value="30" id="slider-E">
+            <span class="num" id="num-E">30s</span>
+          </div>
+          <div style="font-size:12px; color:#0ea5e9; font-weight:700; margin:8px 0 4px 0;"><b id="queue-count-E">0</b> waiting</div>
+          <div class="queue-bar-wrap"><div class="queue-bar" id="queue-E"></div></div>
+        </div>
+        <div class="signal-card" id="card-W">
+          <h4>◀️ West</h4>
+          <span class="state-badge RED" id="badge-W">RED</span>
+          <div class="slider-row">
+            <input type="range" min="10" max="60" value="30" id="slider-W">
+            <span class="num" id="num-W">30s</span>
+          </div>
+          <div style="font-size:12px; color:#0ea5e9; font-weight:700; margin:8px 0 4px 0;"><b id="queue-count-W">0</b> waiting</div>
+          <div class="queue-bar-wrap"><div class="queue-bar" id="queue-W"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel-title" style="margin-bottom:10px;">Vehicles On Road</div>
+      <div class="vehicle-counter">
+        <div class="vehicle-type"><span class="ico">🏍️</span> <b id="count-motorcycle">0</b></div>
+        <div class="vehicle-type"><span class="ico">🚗</span> <b id="count-sedan">0</b></div>
+        <div class="vehicle-type"><span class="ico">🚙</span> <b id="count-suv">0</b></div>
+        <div class="vehicle-type"><span class="ico">🚌</span> <b id="count-bus">0</b></div>
+        <div class="vehicle-type"><span class="ico">🚚</span> <b id="count-truck">0</b></div>
+        <div class="vehicle-type"><span class="ico">🚑</span> <b id="count-ambulance">0</b></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel-title" style="margin-bottom:10px;">Traffic Density</div>
+      <select class="scenario" id="scenario-select">
+        <option value="light">🟢 Light Traffic</option>
+        <option value="normal" selected>🟡 Normal Traffic</option>
+        <option value="heavy">🟠 Heavy Traffic</option>
+        <option value="rush">🔴 Rush Hour (Extreme)</option>
+      </select>
+    </div>
+
+    <button class="btn-construction" id="construction-btn">🚧 Toggle Construction Zone (North)</button>
+
+    <div class="stats-box">
+      <div class="panel-title">Live Stats</div>
+      <div class="stat-row"><span>Avg Wait Time</span><b id="stat-wait">0s</b></div>
+      <div class="stat-row"><span>Longest Queue</span><b id="stat-queue">0 vehicles</b></div>
+      <div class="stat-row"><span>Throughput</span><b id="stat-throughput">0 / min</b></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= CANVAS SETUP ================= */
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+function resize(){
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Click on a traffic light to switch the active green pair manually.
+// Clicking N or S light makes NS pair green; clicking E or W makes EW green.
+// Once user clicks anything, game enters manual mode (auto-cycle stops).
+function getPointerPos(evt){
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (evt.clientX - rect.left) * (canvas.width / rect.width),
+    y: (evt.clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+
+function hitTestLights(px, py){
+  for(const dir of ['N','S','E','W']){
+    const b = lightHitBoxes[dir];
+    if(!b) continue;
+    if(px >= b.x && px <= b.x+b.w && py >= b.y && py <= b.y+b.h){
+      return dir;
+    }
+  }
+  return null;
+}
+
+canvas.addEventListener('click', (evt)=>{
+  const {x,y} = getPointerPos(evt);
+  const hit = hitTestLights(x,y);
+  if(!hit) return;
+
+  // When first entering manual mode, snapshot the current auto state
+  // so the lights don't jump unexpectedly — user toggles from "now".
+  if(!state.manualMode){
+    const cur = getSignalStates();
+    state.manualStates = {
+      N: cur.N==='YELLOW' ? 'RED' : cur.N,
+      S: cur.S==='YELLOW' ? 'RED' : cur.S,
+      E: cur.E==='YELLOW' ? 'RED' : cur.E,
+      W: cur.W==='YELLOW' ? 'RED' : cur.W
+    };
+    state.manualMode = true;
+  }
+
+  // Toggle just the clicked light between RED and GREEN
+  state.manualStates[hit] = (state.manualStates[hit]==='GREEN') ? 'RED' : 'GREEN';
+  beep(700, 0.06, 0.05);
+  updateModeIndicator();
+});
+
+canvas.addEventListener('mousemove', (evt)=>{
+  const {x,y} = getPointerPos(evt);
+  canvas.style.cursor = hitTestLights(x,y) ? 'pointer' : 'default';
+});
+
+function updateModeIndicator(){
+  const el = document.getElementById('mode-indicator');
+  if(!el) return;
+  if(state.manualMode){
+    el.textContent = '🖱️ Manual';
+    el.classList.add('manual');
+  } else {
+    el.textContent = '⚙️ Auto';
+    el.classList.remove('manual');
+  }
+}
+
+/* ================= GAME STATE ================= */
+const state = {
+  running: true,
+  paused: false,
+  timeLeft: 900,
+  vehiclesPassed: 0,
+  frame: 0,
+  soundOn: true,
+  showGrid: false,
+  scenario: 'normal',
+  constructionN: false,
+  vehicles: [],
+  waitTimes: [],
+  passedInLastMinute: [],
+  signals: {
+    N: { green: 30, queue: 0 },
+    S: { green: 30, queue: 0 },
+    E: { green: 30, queue: 0 },
+    W: { green: 30, queue: 0 }
+  },
+  manualMode: false,
+  manualStates: { N:'RED', S:'RED', E:'RED', W:'RED' } // individual control per direction
+};
+
+const scenarioRates = { light: 55, normal: 32, heavy: 18, rush: 9 };
+
+/* ================= UI BINDINGS ================= */
+['N','S','E','W'].forEach(dir=>{
+  const slider = document.getElementById('slider-'+dir);
+  const num = document.getElementById('num-'+dir);
+  slider.addEventListener('input', ()=>{
+    state.signals[dir].green = parseInt(slider.value);
+    num.textContent = slider.value+'s';
+  });
+});
+
+document.getElementById('scenario-select').addEventListener('change', e=>{
+  state.scenario = e.target.value;
+});
+
+document.getElementById('construction-btn').addEventListener('click', function(){
+  state.constructionN = !state.constructionN;
+  this.classList.toggle('active', state.constructionN);
+  this.textContent = state.constructionN ? '🚧 Construction ACTIVE (North Blocked)' : '🚧 Toggle Construction Zone (North)';
+});
+
+document.getElementById('reset-auto-btn').addEventListener('click', ()=>{
+  state.manualMode = false;
+  updateModeIndicator();
+});
+
+document.getElementById('pause-toggle').addEventListener('click', togglePause);
+document.getElementById('resume-btn').addEventListener('click', togglePause);
+document.getElementById('restart-btn').addEventListener('click', restartGame);
+
+function togglePause(){
+  state.paused = !state.paused;
+  document.getElementById('pause-overlay').classList.toggle('active', state.paused);
+  document.getElementById('pause-toggle').textContent = state.paused ? '▶' : '⏸';
+}
+
+function restartGame(){
+  state.timeLeft = 900;
+  state.vehiclesPassed = 0;
+  state.vehicles = [];
+  state.waitTimes = [];
+  state.passedInLastMinute = [];
+  state.paused = false;
+  document.getElementById('pause-overlay').classList.remove('active');
+  document.getElementById('pause-toggle').textContent = '⏸';
+}
+
+document.getElementById('settings-toggle').addEventListener('click', ()=>{
+  document.getElementById('settings-overlay').classList.add('active');
+});
+document.getElementById('close-settings').addEventListener('click', ()=>{
+  document.getElementById('settings-overlay').classList.remove('active');
+});
+document.getElementById('toggle-sfx').addEventListener('click', function(){
+  this.classList.toggle('on');
+  state.soundOn = this.classList.contains('on');
+});
+document.getElementById('toggle-grid').addEventListener('click', function(){
+  this.classList.toggle('on');
+  state.showGrid = this.classList.contains('on');
+});
+
+/* ================= AUDIO ================= */
+function beep(freq, dur, vol){
+  if(!state.soundOn) return;
+  try{
+    const actx = beep.ctx || (beep.ctx = new (window.AudioContext||window.webkitAudioContext)());
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.connect(gain); gain.connect(actx.destination);
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, actx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, actx.currentTime+dur);
+    osc.start(); osc.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+
+/* ================= ISOMETRIC PROJECTION ================= */
+// World coords (x,y) -> screen. x: -1(west) to 1(east), y: -1(north) to 1(south)
+function project(wx, wy){
+  const cx = canvas.width/2;
+  const cy = canvas.height/2 + 40;
+  const scale = Math.min(canvas.width, canvas.height) * 0.42;
+  const sx = cx + (wx - wy) * scale;
+  const sy = cy + (wx + wy) * scale * 0.5;
+  return {x:sx, y:sy};
+}
+
+/* ================= SIGNAL CYCLE LOGIC ================= */
+function getSignalStates(){
+  // Manual mode: each light is controlled individually by user clicks.
+  // Player is responsible for avoiding conflicting greens.
+  if(state.manualMode){
+    const m = state.manualStates;
+    let N=m.N, S=m.S, E=m.E, W=m.W;
+    if(state.constructionN) N='RED';
+    return {N,S,E,W};
+  }
+
+  // Auto-cycle mode (default)
+  const nsGreen = state.signals.N.green;
+  const ewGreen = state.signals.E.green;
+  const yellow = 5;
+  const nsTotal = nsGreen + yellow;
+  const ewTotal = ewGreen + yellow;
+  const cycle = nsTotal + ewTotal;
+  const tSec = (state.frame/60) % cycle;
+
+  let N,S,E,W;
+  if(tSec < nsGreen){ N='GREEN'; S='GREEN'; E='RED'; W='RED'; }
+  else if(tSec < nsTotal){ N='YELLOW'; S='YELLOW'; E='RED'; W='RED'; }
+  else if(tSec < nsTotal+ewGreen){ N='RED'; S='RED'; E='GREEN'; W='GREEN'; }
+  else { N='RED'; S='RED'; E='YELLOW'; W='YELLOW'; }
+
+  if(state.constructionN) N='RED';
+
+  return {N,S,E,W};
+}
+
+/* ================= VEHICLE CLASS ================= */
+const VEHICLE_TYPES = [
+  { type:'motorcycle', len:0.05, wid:0.03, colors:['#222'] },
+  { type:'sedan', len:0.085, wid:0.045, colors:['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c'] },
+  { type:'suv', len:0.095, wid:0.052, colors:['#34495e','#16a085','#c0392b','#2c3e50'] },
+  { type:'truck', len:0.135, wid:0.058, colors:['#e67e22','#f1c40f'] },
+  { type:'bus', len:0.155, wid:0.062, colors:['#9b59b6','#8e44ad'] },
+  { type:'ambulance', len:0.095, wid:0.05, colors:['#ffffff'] }
+];
+
+function pickVehicleType(){
+  const r = Math.random();
+  if(r < 0.03) return VEHICLE_TYPES[5]; // ambulance rare
+  if(r < 0.08) return VEHICLE_TYPES[4]; // bus
+  if(r < 0.20) return VEHICLE_TYPES[3]; // truck
+  if(r < 0.40) return VEHICLE_TYPES[2]; // suv
+  if(r < 0.62) return VEHICLE_TYPES[1]; // sedan
+  return VEHICLE_TYPES[0]; // motorcycle (most common)
+}
+
+class Vehicle {
+  constructor(dir){
+    this.dir = dir; // N,S,E,W = direction of TRAVEL (where it's heading)
+    const spec = pickVehicleType();
+    this.spec = spec;
+    this.color = spec.colors[Math.floor(Math.random()*spec.colors.length)];
+    this.len = spec.len;
+    this.wid = spec.wid;
+    const speedMultiplier = spec.type==='motorcycle' ? 1.35 : spec.type==='bus' ? 0.8 : spec.type==='truck' ? 0.85 : 1.0;
+    this.speed = (0.0030 + Math.random()*0.0012) * speedMultiplier;
+    this.curSpeed = 0;
+    this.waitFrames = 0;
+    this.passed = false;
+    this.hasEnteredIntersection = false;
+    // Left-hand traffic (Indonesia rule): vehicle ALWAYS uses the left lane
+    // from its own driving perspective. The lane offset is a small jitter for
+    // visual variety within the same lane (sub-lane offset for motorcycles vs cars).
+    const subLaneJitter = this.spec && this.spec.type==='motorcycle'
+      ? (Math.random()<0.5 ? -0.03 : 0.03)
+      : (Math.random() - 0.5) * 0.02;
+    this.laneOffset = 0.085 + subLaneJitter;
+
+    // Position along path: t = -1.6 (far start) to 1.6 (far end), moving toward 0 then past
+    this.t = -1.6;
+    this.id = Math.random();
+  }
+
+  worldPos(){
+    // For left-hand traffic, each direction uses ONE specific lane
+    // (the left side from the driver's POV), so opposing flows never collide.
+    //
+    // World axes: +wx = east-ish (down-right on screen), +wy = south-ish (down-left).
+    // N traveler heading toward -wy: their left side is +wx  -> lane at wx = +laneOffset
+    // S traveler heading toward +wy: their left side is -wx  -> lane at wx = -laneOffset
+    // E traveler heading toward +wx: their left side is -wy  -> lane at wy = -laneOffset
+    // W traveler heading toward -wx: their left side is +wy  -> lane at wy = +laneOffset
+    let wx=0, wy=0;
+    switch(this.dir){
+      case 'N': wx = this.laneOffset;   wy = -this.t; break;
+      case 'S': wx = -this.laneOffset;  wy = this.t;  break;
+      case 'E': wx = this.t;  wy = -this.laneOffset; break;
+      case 'W': wx = -this.t; wy = this.laneOffset;  break;
+    }
+    return {wx,wy};
+  }
+
+  stopLinePos(){
+    // distance t at which vehicle must stop (just before intersection box, accounting queue ahead)
+    return -0.22 - this.queueGap;
+  }
+
+  update(signalState, vehiclesAhead){
+    // find vehicle ahead in same dir+lane, tracking its body length too
+    let minGapT = Infinity;
+    let aheadVehicleLen = 0.085;
+    vehiclesAhead.forEach(v=>{
+      if(v===this || v.dir!==this.dir) return;
+      if(v.t > this.t && v.t < minGapT){
+        minGapT = v.t;
+        aheadVehicleLen = v.len;
+      }
+    });
+    // required gap = half of ahead vehicle's length + half of this vehicle's length + buffer
+    const buffer = 0.025;
+    const gapNeeded = (aheadVehicleLen/2) + (this.len/2) + buffer;
+    const aheadLimit = (minGapT===Infinity) ? Infinity : minGapT - gapNeeded;
+
+    const sig = signalState[this.dir];
+
+    let targetSpeed = this.speed;
+
+    // Red or yellow light: must stop before the stop line if not yet past it.
+    // Stop line is positioned just before the crosswalk (at t = -0.32),
+    // so vehicles queue BEHIND the zebra crossing, not on top of it.
+    const stopLineT = -0.32;
+    if((sig==='RED' || sig==='YELLOW') && this.t < stopLineT){
+      const distToStop = stopLineT - this.t;
+      if(distToStop < 0.22){
+        const brakeFactor = Math.max(0, distToStop / 0.22);
+        targetSpeed = this.speed * brakeFactor;
+        if(distToStop < 0.03) targetSpeed = 0;
+      }
+    }
+
+    // Respect vehicle ahead — but only block if the vehicle ahead is also
+    // already moving/committed (not stuck waiting at a red light far ahead).
+    // This prevents a vehicle that already entered the intersection from
+    // getting stuck behind a queue that hasn't started moving yet.
+    const stopLineTForGap = -0.32;
+    const distAhead = aheadLimit - this.t;
+    const iAmPastStopLine = this.t > stopLineTForGap;
+
+    if(!iAmPastStopLine || aheadLimit > stopLineTForGap){
+      if(distAhead < 0.06){
+        targetSpeed = 0;
+      } else if(distAhead < 0.12){
+        targetSpeed = Math.min(targetSpeed, this.speed*0.4);
+      }
+    }
+
+    // smooth accel/decel
+    if(this.curSpeed < targetSpeed) this.curSpeed = Math.min(targetSpeed, this.curSpeed + 0.00022);
+    else this.curSpeed = Math.max(targetSpeed, this.curSpeed - 0.0009);
+
+    if(this.curSpeed < 0.0003) this.waitFrames++;
+    else { if(this.waitFrames>0){ state.waitTimes.push(this.waitFrames/60); } this.waitFrames=0; }
+
+    const prevT = this.t;
+    this.t += this.curSpeed * 16.67; // normalize-ish per frame
+
+    // hard clamp: if light is red/yellow and vehicle was still behind stop line
+    // last frame, don't let it cross now
+    if((sig==='RED' || sig==='YELLOW') && prevT <= stopLineT && this.t > stopLineT){
+      this.t = stopLineT;
+      this.curSpeed = 0;
+    }
+    if(this.t > stopLineT) this.hasEnteredIntersection = true;
+
+    if(this.t > 1.7 && !this.passed){
+      this.passed = true;
+      return 'PASSED';
+    }
+    return 'ALIVE';
+  }
+}
+
+/* ================= SPAWN LOGIC ================= */
+function spawnVehicles(){
+  const rate = scenarioRates[state.scenario]; // lower = more frequent
+  if(state.frame % rate === 0){
+    const dirs = ['N','S','E','W'];
+    const dir = dirs[Math.floor(Math.random()*4)];
+    // prevent overcrowding a lane
+    const countInLane = state.vehicles.filter(v=>v.dir===dir && v.t < -0.3).length;
+    if(countInLane < 12){
+      state.vehicles.push(new Vehicle(dir));
+    }
+  }
+}
+
+/* ================= DRAWING: ENVIRONMENT ================= */
+function drawGround(){
+  ctx.fillStyle = '#dff3e0';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // big isometric grass diamond as base
+  const corners = [project(-1.8,-1.8), project(1.8,-1.8), project(1.8,1.8), project(-1.8,1.8)];
+  ctx.fillStyle = '#cdeccb';
+  ctx.beginPath();
+  ctx.moveTo(corners[0].x, corners[0].y);
+  corners.forEach(c=>ctx.lineTo(c.x,c.y));
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawRoadSurface(){
+  const roadHalf = 0.16;
+  // vertical road (N-S) strip: x in [-roadHalf, roadHalf], y in [-1.8,1.8]
+  const vCorners = [project(-roadHalf,-1.8), project(roadHalf,-1.8), project(roadHalf,1.8), project(-roadHalf,1.8)];
+  ctx.fillStyle = '#52606d';
+  ctx.beginPath();
+  ctx.moveTo(vCorners[0].x,vCorners[0].y);
+  vCorners.forEach(c=>ctx.lineTo(c.x,c.y));
+  ctx.closePath(); ctx.fill();
+
+  // horizontal road (E-W) strip: y in [-roadHalf,roadHalf]
+  const hCorners = [project(-1.8,-roadHalf), project(1.8,-roadHalf), project(1.8,roadHalf), project(-1.8,roadHalf)];
+  ctx.fillStyle = '#52606d';
+  ctx.beginPath();
+  ctx.moveTo(hCorners[0].x,hCorners[0].y);
+  hCorners.forEach(c=>ctx.lineTo(c.x,c.y));
+  ctx.closePath(); ctx.fill();
+
+  // intersection darker overlay
+  const iCorners = [project(-roadHalf,-roadHalf), project(roadHalf,-roadHalf), project(roadHalf,roadHalf), project(-roadHalf,roadHalf)];
+  ctx.fillStyle = '#475059';
+  ctx.beginPath();
+  ctx.moveTo(iCorners[0].x,iCorners[0].y);
+  iCorners.forEach(c=>ctx.lineTo(c.x,c.y));
+  ctx.closePath(); ctx.fill();
+}
+
+function drawLaneMarkings(){
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+  ctx.lineWidth = 2;
+  // dashed center lines, vertical road (two segments avoiding intersection)
+  function dashedLine(wx1,wy1,wx2,wy2,segments){
+    const p1=project(wx1,wy1), p2=project(wx2,wy2);
+    const dx=(p2.x-p1.x)/segments, dy=(p2.y-p1.y)/segments;
+    for(let i=0;i<segments;i+=2){
+      ctx.beginPath();
+      ctx.moveTo(p1.x+dx*i, p1.y+dy*i);
+      ctx.lineTo(p1.x+dx*(i+1), p1.y+dy*(i+1));
+      ctx.stroke();
+    }
+  }
+  dashedLine(0,-1.8,0,-0.18,24);
+  dashedLine(0,0.18,0,1.8,24);
+  dashedLine(-1.8,0,-0.18,0,24);
+  dashedLine(0.18,0,1.8,0,24);
+
+  // crosswalk stripes at 4 sides of intersection
+  ctx.fillStyle='rgba(255,255,255,0.65)';
+  function crosswalk(wx,wy, horizontal){
+    for(let i=-3;i<=3;i++){
+      const off = i*0.022;
+      let p1,p2,p3,p4;
+      if(horizontal){
+        p1=project(wx+off-0.008, wy-0.07); p2=project(wx+off+0.008, wy-0.07);
+        p3=project(wx+off+0.008, wy+0.07); p4=project(wx+off-0.008, wy+0.07);
+      } else {
+        p1=project(wx-0.07, wy+off-0.008); p2=project(wx+0.07, wy+off-0.008);
+        p3=project(wx+0.07, wy+off+0.008); p4=project(wx-0.07, wy+off+0.008);
+      }
+      ctx.beginPath();
+      ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.lineTo(p3.x,p3.y); ctx.lineTo(p4.x,p4.y);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  crosswalk(0,-0.24, true);
+  crosswalk(0,0.24, true);
+  crosswalk(-0.24,0, false);
+  crosswalk(0.24,0, false);
+}
+
+function drawSidewalksAndTrees(){
+  // sidewalk strips along roads
+  ctx.fillStyle = '#bcd9bb';
+  function sidewalk(wx1,wy1,wx2,wy2,wx3,wy3,wx4,wy4){
+    const pts=[project(wx1,wy1),project(wx2,wy2),project(wx3,wy3),project(wx4,wy4)];
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x,pts[0].y);
+    pts.forEach(p=>ctx.lineTo(p.x,p.y));
+    ctx.closePath(); ctx.fill();
+  }
+  const rh=0.16, sw=0.05;
+  sidewalk(-rh-sw,-1.8, -rh,-1.8, -rh,1.8, -rh-sw,1.8);
+  sidewalk(rh,-1.8, rh+sw,-1.8, rh+sw,1.8, rh,1.8);
+
+  // trees in NW quadrant
+  const treeSpots = [
+    [-0.45,-0.55],[-0.55,-0.75],[-0.65,-0.45],[-0.40,-0.85],[-0.7,-0.65],
+    [0.45,0.55],[0.55,0.75],[0.65,0.45],[0.4,0.85],
+    [-0.5,0.6],[0.5,-0.6]
+  ];
+  treeSpots.forEach(([tx,ty])=>drawTree(tx,ty));
+
+  // small park benches NW
+  drawBench(-0.42,-0.30);
+}
+
+function drawTree(wx,wy){
+  const p = project(wx,wy);
+  // trunk
+  ctx.fillStyle='#8b5a2b';
+  ctx.fillRect(p.x-2,p.y-6,4,10);
+  // foliage layers
+  ctx.fillStyle='#4a9c4a';
+  ctx.beginPath(); ctx.arc(p.x,p.y-14,11,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#5cb35c';
+  ctx.beginPath(); ctx.arc(p.x-5,p.y-10,8,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(p.x+6,p.y-9,8,0,Math.PI*2); ctx.fill();
+}
+
+function drawBench(wx,wy){
+  const p = project(wx,wy);
+  ctx.fillStyle='#c0784f';
+  ctx.fillRect(p.x-14,p.y-4,28,5);
+  ctx.fillRect(p.x-14,p.y-12,28,4);
+  ctx.fillStyle='#7a4a2b';
+  ctx.fillRect(p.x-12,p.y,3,8);
+  ctx.fillRect(p.x+9,p.y,3,8);
+}
+
+function drawBuilding(wx,wy,w,h,height,color){
+  // simple isometric box building footprint w x h, extruded "height" upward
+  const corners2D = [
+    project(wx-w/2,wy-h/2), project(wx+w/2,wy-h/2),
+    project(wx+w/2,wy+h/2), project(wx-w/2,wy+h/2)
+  ];
+  const top = corners2D.map(c=>({x:c.x, y:c.y-height}));
+
+  // side faces (left & right visible)
+  ctx.fillStyle = shade(color,-25);
+  ctx.beginPath();
+  ctx.moveTo(corners2D[0].x,corners2D[0].y);
+  ctx.lineTo(corners2D[3].x,corners2D[3].y);
+  ctx.lineTo(top[3].x,top[3].y);
+  ctx.lineTo(top[0].x,top[0].y);
+  ctx.closePath(); ctx.fill();
+
+  ctx.fillStyle = shade(color,-10);
+  ctx.beginPath();
+  ctx.moveTo(corners2D[3].x,corners2D[3].y);
+  ctx.lineTo(corners2D[2].x,corners2D[2].y);
+  ctx.lineTo(top[2].x,top[2].y);
+  ctx.lineTo(top[3].x,top[3].y);
+  ctx.closePath(); ctx.fill();
+
+  // roof
+  ctx.fillStyle = shade(color,15);
+  ctx.beginPath();
+  ctx.moveTo(top[0].x,top[0].y);
+  top.forEach(c=>ctx.lineTo(c.x,c.y));
+  ctx.closePath(); ctx.fill();
+
+  // windows on right face
+  ctx.fillStyle='rgba(255,255,255,0.5)';
+  const rows = Math.floor(height/16);
+  for(let r=1;r<rows;r++){
+    const yOff = r*16;
+    const wp1 = {x:corners2D[3].x*0.5+corners2D[2].x*0.5, y:corners2D[3].y*0.5+corners2D[2].y*0.5 - yOff};
+    ctx.fillRect(wp1.x-10, wp1.y-4, 6,6);
+    ctx.fillRect(wp1.x+2, wp1.y-4, 6,6);
+  }
+}
+
+function shade(hex, amt){
+  const num = parseInt(hex.slice(1),16);
+  let r=(num>>16)+amt, g=((num>>8)&0xff)+amt, b=(num&0xff)+amt;
+  r=Math.max(0,Math.min(255,r)); g=Math.max(0,Math.min(255,g)); b=Math.max(0,Math.min(255,b));
+  return `rgb(${r},${g},${b})`;
+}
+
+function drawBuildings(){
+  // NE quadrant cluster (like reference image) - closer to be visible in viewport
+  drawBuilding(0.55,-0.6,0.22,0.22,70,'#dfe7ee');
+  drawBuilding(0.78,-0.42,0.18,0.18,50,'#f3d9b1');
+  drawBuilding(0.42,-0.82,0.2,0.2,55,'#e8c9a0');
+}
+
+/* ================= TRAFFIC LIGHTS (4 corners like reference) ================= */
+// Cache screen-space positions of each traffic light's clickable hit box,
+// updated every frame in drawTrafficLightPole so click handler can pick them.
+const lightHitBoxes = { N:null, S:null, E:null, W:null };
+
+function drawTrafficLightPole(wx,wy, facingDirs, signalState, dirKey){
+  const base = project(wx,wy);
+  const poleH = 78;
+  // pole
+  ctx.strokeStyle='#2d3436'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(base.x,base.y); ctx.lineTo(base.x,base.y-poleH); ctx.stroke();
+  // arm
+  ctx.beginPath(); ctx.moveTo(base.x,base.y-poleH); ctx.lineTo(base.x+ (facingDirs.armDir*34), base.y-poleH-6); ctx.stroke();
+
+  const lampX = base.x + facingDirs.armDir*34;
+  const lampY = base.y - poleH - 6;
+  // light box
+  ctx.fillStyle='#1e272e';
+  ctx.fillRect(lampX-9, lampY-2, 18, 30);
+  const colors = {RED:'#ff4d4d', YELLOW:'#ffd43b', GREEN:'#51cf66'};
+  ['RED','YELLOW','GREEN'].forEach((c,i)=>{
+    const active = signalState===c;
+    ctx.beginPath();
+    ctx.arc(lampX, lampY+5+i*9, 3.4, 0, Math.PI*2);
+    ctx.fillStyle = active ? colors[c] : '#3a4248';
+    if(active){ ctx.shadowColor=colors[c]; ctx.shadowBlur=10; }
+    ctx.fill();
+    ctx.shadowBlur=0;
+  });
+
+  // Subtle "clickable" hint: thin outline + cursor on hover
+  ctx.strokeStyle='rgba(255,255,255,0.12)';
+  ctx.lineWidth=1;
+  ctx.strokeRect(lampX-10, lampY-3, 20, 32);
+
+  // base footing
+  ctx.fillStyle='#2d3436';
+  ctx.beginPath(); ctx.ellipse(base.x,base.y,5,2.5,0,0,Math.PI*2); ctx.fill();
+
+  // store hit box (a bit larger than the visible light for easier clicking)
+  if(dirKey) lightHitBoxes[dirKey] = { x:lampX-16, y:lampY-8, w:32, h:42 };
+}
+
+function drawAllTrafficLights(signalState){
+  // 4 corners of intersection, each controls the direction facing it
+  drawTrafficLightPole(-0.20,-0.20, {armDir:1}, signalState.N, 'N');
+  drawTrafficLightPole(0.20,0.20, {armDir:-1}, signalState.S, 'S');
+  drawTrafficLightPole(0.20,-0.20, {armDir:-1}, signalState.E, 'E');
+  drawTrafficLightPole(-0.20,0.20, {armDir:1}, signalState.W, 'W');
+}
+
+/* ================= VEHICLE DRAWING (high-detail vector sprites) ================= */
+// Each vehicle type/color/orientation combo is pre-rendered once to an offscreen
+// canvas (with gradients, glass, lights, shading) and cached as a bitmap sprite.
+// Drawing a cached bitmap per frame is cheap, so detail here doesn't hurt perf.
+
+const carSpriteCache = {};
+
+function makeGradient(octx, x0,y0,x1,y1, stops){
+  const g = octx.createLinearGradient(x0,y0,x1,y1);
+  stops.forEach(([pos,color])=>g.addColorStop(pos,color));
+  return g;
+}
+
+// Renders one vehicle sprite (front-facing "up" orientation, i.e. traveling North)
+// onto an offscreen canvas sized to fit. unitSize = pixels per "1.0" length unit.
+function renderCarSprite(type, bodyColor, isVertical, unitSize){
+  const dims = {
+    motorcycle: { len:0.62, wid:0.34 },
+    sedan:      { len:1.00, wid:0.50 },
+    suv:        { len:1.08, wid:0.56 },
+    truck:      { len:1.45, wid:0.58 },
+    bus:        { len:1.65, wid:0.62 },
+    ambulance:  { len:1.05, wid:0.55 }
+  }[type] || { len:1.0, wid:0.5 };
+
+  // canvas-space body size in px (before orientation swap)
+  let bodyL = dims.len * unitSize;
+  let bodyW = dims.wid * unitSize;
+
+  const pad = unitSize*0.45;
+  const cw = (isVertical ? bodyW : bodyL) + pad*2;
+  const chh = (isVertical ? bodyL : bodyW) + pad*2;
+
+  const off = document.createElement('canvas');
+  off.width = Math.ceil(cw);
+  off.height = Math.ceil(chh);
+  const octx = off.getContext('2d');
+  octx.translate(off.width/2, off.height/2);
+
+  const dark = shade(bodyColor,-55);
+  const mid = shade(bodyColor,-22);
+  const light = shade(bodyColor,28);
+  const glassTop = 'rgba(186,224,247,0.92)';
+  const glassBot = 'rgba(120,165,200,0.85)';
+
+  // working dims depending on orientation: rectW = across travel axis, rectH = along travel axis
+  const rectW = isVertical ? bodyW : bodyL;
+  const rectH = isVertical ? bodyL : bodyW;
+  const r = Math.min(rectW,rectH) * (type==='motorcycle' ? 0.45 : 0.22);
+
+  octx.save();
+  if(!isVertical) octx.rotate(Math.PI/2); // draw in "vertical" local space, then rotate canvas for horizontal sprites
+  // after this point, local space always has width=bodyW(across), height=bodyL(along), front = -y
+
+  const w = bodyW, h = bodyL;
+
+  // ===== shadow under body (soft) =====
+  octx.fillStyle = 'rgba(0,0,0,0.25)';
+  octx.beginPath();
+  octx.ellipse(0, h*0.06, w*0.62, h*0.42, 0,0,Math.PI*2);
+  octx.fill();
+
+  if(type==='motorcycle'){
+    // simple but clean motorcycle: body line + wheels + rider blob
+    octx.strokeStyle = dark; octx.lineWidth = w*0.16; octx.lineCap='round';
+    octx.beginPath(); octx.moveTo(0,-h/2+h*0.12); octx.lineTo(0,h/2-h*0.12); octx.stroke();
+    // wheels
+    octx.fillStyle = '#1a1a1a';
+    octx.beginPath(); octx.ellipse(0,-h/2+h*0.12, w*0.32, w*0.32, 0,0,Math.PI*2); octx.fill();
+    octx.beginPath(); octx.ellipse(0, h/2-h*0.12, w*0.32, w*0.32, 0,0,Math.PI*2); octx.fill();
+    octx.fillStyle = '#3a3a3a';
+    octx.beginPath(); octx.ellipse(0,-h/2+h*0.12, w*0.16, w*0.16, 0,0,Math.PI*2); octx.fill();
+    octx.beginPath(); octx.ellipse(0, h/2-h*0.12, w*0.16, w*0.16, 0,0,Math.PI*2); octx.fill();
+    // rider
+    octx.fillStyle = bodyColor;
+    roundRect(octx, -w*0.34, -h*0.16, w*0.68, h*0.4, w*0.3);
+    octx.fill();
+    octx.fillStyle = '#2b2b2b';
+    octx.beginPath(); octx.ellipse(0,-h*0.22, w*0.26, w*0.26, 0,0,Math.PI*2); octx.fill(); // helmet
+    // headlight
+    octx.fillStyle = '#fff6c8';
+    octx.beginPath(); octx.ellipse(0,-h/2+h*0.04, w*0.14, w*0.08, 0,0,Math.PI*2); octx.fill();
+    octx.restore();
+    return finalizeSprite(off);
+  }
+
+  // ===== wheels (4 corners, dark with hubcap) =====
+  const wheelRX = w*0.11, wheelRY = h*0.085;
+  const wheelInsetX = w/2 - wheelRX*0.6;
+  const wheelInsetY = h/2 - h*0.20;
+  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sy])=>{
+    octx.fillStyle = '#161616';
+    octx.beginPath();
+    octx.ellipse(sx*wheelInsetX, sy*wheelInsetY, wheelRX, wheelRY, 0,0,Math.PI*2);
+    octx.fill();
+    octx.fillStyle = '#4a4a4a';
+    octx.beginPath();
+    octx.ellipse(sx*wheelInsetX, sy*wheelInsetY, wheelRX*0.45, wheelRY*0.45, 0,0,Math.PI*2);
+    octx.fill();
+  });
+
+  // ===== main body with vertical gradient (top lit, bottom dark) =====
+  const bodyGrad = makeGradient(octx, 0,-h/2, 0,h/2, [
+    [0, light], [0.12, bodyColor], [0.55, bodyColor], [0.85, mid], [1, dark]
+  ]);
+  roundRect(octx, -w/2, -h/2, w, h, r);
+  octx.fillStyle = bodyGrad;
+  octx.fill();
+  octx.strokeStyle = dark;
+  octx.lineWidth = Math.max(1, w*0.02);
+  octx.stroke();
+
+  // side shading: subtle vertical bands left/right for volume
+  octx.save();
+  roundRect(octx, -w/2, -h/2, w, h, r);
+  octx.clip();
+  const sideGrad = makeGradient(octx, -w/2,0, w/2,0, [
+    [0,'rgba(0,0,0,0.28)'],[0.18,'rgba(0,0,0,0)'],[0.82,'rgba(0,0,0,0)'],[1,'rgba(0,0,0,0.22)']
+  ]);
+  octx.fillStyle = sideGrad;
+  octx.fillRect(-w/2,-h/2,w,h);
+  octx.restore();
+
+  // ===== type-specific top details =====
+  if(type==='bus'){
+    // big windshield + window strip + roof AC unit
+    octx.fillStyle = makeGradient(octx,0,-h/2+h*0.08,0,-h/2+h*0.22,[[0,glassTop],[1,glassBot]]);
+    roundRect(octx, -w/2+w*0.08, -h/2+h*0.06, w*0.84, h*0.16, w*0.12); octx.fill();
+    octx.fillStyle = makeGradient(octx,0,-h*0.2,0,h*0.32,[[0,glassTop],[1,glassBot]]);
+    roundRect(octx, -w/2+w*0.06, -h*0.22, w*0.88, h*0.54, w*0.08); octx.fill();
+    // window divider lines
+    octx.strokeStyle = 'rgba(0,0,0,0.25)'; octx.lineWidth = Math.max(1,w*0.015);
+    const winTop=-h*0.22, winBot=winTop+h*0.54, segs=5;
+    for(let i=1;i<segs;i++){
+      const yy = winTop + (h*0.54/segs)*i;
+      octx.beginPath(); octx.moveTo(-w/2+w*0.06,yy); octx.lineTo(w/2-w*0.06,yy); octx.stroke();
+    }
+    // roof AC unit
+    octx.fillStyle = shade(bodyColor,10);
+    roundRect(octx,-w*0.18, -h/2-h*0.02, w*0.36, h*0.07, 3); octx.fill();
+  } else if(type==='truck'){
+    // small cabin window up top + cargo box body with separation line + ridges
+    octx.fillStyle = makeGradient(octx,0,-h/2+h*0.04,0,-h/2+h*0.16,[[0,glassTop],[1,glassBot]]);
+    roundRect(octx, -w/2+w*0.10, -h/2+h*0.03, w*0.80, h*0.13, w*0.1); octx.fill();
+    // separation line between cab and cargo
+    octx.strokeStyle = dark; octx.lineWidth = Math.max(1,w*0.025);
+    const sepY = -h/2+h*0.24;
+    octx.beginPath(); octx.moveTo(-w/2,sepY); octx.lineTo(w/2,sepY); octx.stroke();
+    // cargo box (slightly lighter, with corrugation lines)
+    octx.fillStyle = shade(bodyColor, 8);
+    roundRect(octx, -w/2+w*0.04, sepY+2, w*0.92, h/2-sepY-h*0.08, 4); octx.fill();
+    octx.strokeStyle = 'rgba(0,0,0,0.15)'; octx.lineWidth = 1;
+    for(let i=1;i<6;i++){
+      const yy = sepY + ((h/2-sepY-h*0.08)/6)*i;
+      octx.beginPath(); octx.moveTo(-w/2+w*0.06,yy); octx.lineTo(w/2-w*0.06,yy); octx.stroke();
+    }
+  } else if(type==='ambulance'){
+    // windshield
+    octx.fillStyle = makeGradient(octx,0,-h/2+h*0.06,0,-h/2+h*0.2,[[0,glassTop],[1,glassBot]]);
+    roundRect(octx, -w/2+w*0.08, -h/2+h*0.05, w*0.84, h*0.16, w*0.1); octx.fill();
+    // red stripe + cross box
+    octx.fillStyle = '#e74c3c';
+    roundRect(octx, -w/2+w*0.04, -h*0.05, w*0.92, h*0.32, 4); octx.fill();
+    octx.fillStyle = '#fff';
+    roundRect(octx, -w*0.18, h*0.02, w*0.36, h*0.18, 3); octx.fill();
+    octx.fillStyle = '#e74c3c';
+    octx.fillRect(-w*0.025, h*0.045, w*0.05, h*0.13);
+    octx.fillRect(-w*0.13, h*0.10, w*0.26, h*0.05);
+    // light bar on roof
+    octx.fillStyle = '#3498db';
+    roundRect(octx, -w*0.30, -h/2-h*0.025, w*0.27, h*0.045, 2); octx.fill();
+    octx.fillStyle = '#e74c3c';
+    roundRect(octx, w*0.03, -h/2-h*0.025, w*0.27, h*0.045, 2); octx.fill();
+  } else {
+    // sedan / suv: windshield + rear window with center pillar
+    octx.fillStyle = makeGradient(octx,0,-h/2+h*0.10,0,-h*0.02,[[0,glassTop],[1,glassBot]]);
+    roundRect(octx, -w/2+w*0.10, -h/2+h*0.12, w*0.80, h*0.28, w*0.16); octx.fill();
+    octx.fillStyle = makeGradient(octx,0,h*0.06,0,h*0.34,[[0,glassBot],[1,glassTop]]);
+    roundRect(octx, -w/2+w*0.10, h*0.06, w*0.80, h*0.26, w*0.16); octx.fill();
+    if(type==='suv'){
+      // roof rails
+      octx.strokeStyle = shade(bodyColor,-50); octx.lineWidth = Math.max(1,w*0.035);
+      octx.beginPath(); octx.moveTo(-w*0.30,-h*0.18); octx.lineTo(-w*0.30,h*0.16); octx.stroke();
+      octx.beginPath(); octx.moveTo(w*0.30,-h*0.18); octx.lineTo(w*0.30,h*0.16); octx.stroke();
+    }
+  }
+
+  // ===== headlights (front, -h/2 side) =====
+  octx.fillStyle = '#fff7d6';
+  octx.save();
+  octx.shadowColor = 'rgba(255,247,200,0.9)';
+  octx.shadowBlur = w*0.12;
+  roundRect(octx, -w/2+w*0.04, -h/2+h*0.01, w*0.16, h*0.045, 2); octx.fill();
+  roundRect(octx, w/2-w*0.20, -h/2+h*0.01, w*0.16, h*0.045, 2); octx.fill();
+  octx.restore();
+
+  // ===== taillights (rear, +h/2 side) =====
+  octx.fillStyle = '#ff3b3b';
+  roundRect(octx, -w/2+w*0.04, h/2-h*0.05, w*0.14, h*0.04, 2); octx.fill();
+  roundRect(octx, w/2-w*0.18, h/2-h*0.05, w*0.14, h*0.04, 2); octx.fill();
+
+  // ===== subtle top gloss highlight =====
+  octx.fillStyle = 'rgba(255,255,255,0.18)';
+  roundRect(octx, -w*0.32, -h/2+h*0.02, w*0.22, h*0.5, w*0.15);
+  octx.fill();
+
+  octx.restore();
+  return finalizeSprite(off);
+
+  function finalizeSprite(canvasEl){
+    return canvasEl;
+  }
+}
+
+function getCarSprite(type, color, isVertical, unitSize){
+  const key = `${type}_${color}_${isVertical}_${Math.round(unitSize)}`;
+  if(carSpriteCache[key]) return carSpriteCache[key];
+  const sprite = renderCarSprite(type, color, isVertical, unitSize);
+  carSpriteCache[key] = sprite;
+  return sprite;
+}
+
+// Screen-space heading angle for each travel direction, derived from the
+// isometric projection itself (project(): sx=(wx-wy)*s, sy=(wx+wy)*s*0.5).
+// Sprite's "front" is drawn pointing up (-h direction) in its own local space,
+// so we rotate by (angle - (-90deg)) to align it with the actual screen heading.
+const DIR_SCREEN_ANGLE = {
+  N: Math.atan2(-0.5, 1),   // wy decreases -> screen vector (+1,-0.5)
+  S: Math.atan2(0.5, -1),   // wy increases -> screen vector (-1,+0.5)
+  E: Math.atan2(0.5, 1),    // wx increases -> screen vector (+1,+0.5)
+  W: Math.atan2(-0.5, -1)   // wx decreases -> screen vector (-1,-0.5)
+};
+
+function drawVehicle(v){
+  const {wx,wy} = v.worldPos();
+  const p = project(wx,wy);
+
+  const pxScale = Math.min(canvas.width,canvas.height) * 0.42;
+
+  const baseUnit = v.spec.type==='bus' ? 30 : v.spec.type==='truck' ? 27 : v.spec.type==='motorcycle' ? 22 : 25;
+  const unitSize = Math.max(16, baseUnit * (pxScale/300));
+
+  // sprite is always rendered in "vertical" local space (front pointing up/-y)
+  const sprite = getCarSprite(v.spec.type, v.color, true, unitSize);
+
+  ctx.save();
+  ctx.translate(p.x, p.y);
+
+  // rotate so sprite's "up" (front) aligns with actual screen-space travel heading.
+  // local "up" corresponds to angle -90deg (i.e. -PI/2); rotate by target - (-PI/2)
+  const targetAngle = DIR_SCREEN_ANGLE[v.dir];
+  ctx.rotate(targetAngle + Math.PI/2);
+
+  ctx.drawImage(sprite, -sprite.width/2, -sprite.height/2);
+
+  ctx.restore();
+
+  // waiting indicator (subtle small red dot above vehicle when stopped at red, only after longer wait)
+  if(v.curSpeed < 0.0003 && v.waitFrames > 90){
+    ctx.save();
+    ctx.translate(p.x, p.y - unitSize*0.85);
+    const pulse = 0.5 + Math.sin(state.frame*0.1)*0.3;
+    ctx.fillStyle = `rgba(239,68,68,${0.35*pulse})`;
+    ctx.beginPath();
+    ctx.arc(0,0, 2.2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+/* ================= CONSTRUCTION ZONE ================= */
+function drawConstruction(){
+  if(!state.constructionN) return;
+  const p = project(0.05,-0.55);
+  ctx.fillStyle='#f39c12';
+  ctx.fillRect(p.x-14,p.y-18,28,18);
+  ctx.fillStyle='#fff';
+  ctx.font='bold 9px Arial';
+  ctx.textAlign='center';
+  ctx.fillText('🚧',p.x,p.y-4);
+  ctx.font='bold 8px Arial';
+  ctx.fillStyle='#7a4a00';
+  ctx.fillText('CLOSED',p.x,p.y+10);
+}
+
+/* ================= MAIN RENDER ================= */
+function render(signalState){
+  drawGround();
+  drawRoadSurface();
+  drawLaneMarkings();
+  drawSidewalksAndTrees();
+  drawBuildings();
+  drawConstruction();
+
+  // depth-sort vehicles + traffic lights by world (wx+wy) for correct overlap
+  const drawables = state.vehicles.map(v=>{
+    const pos = v.worldPos();
+    return {depth: pos.wx+pos.wy, draw:()=>drawVehicle(v)};
+  });
+  drawables.push({depth: 0.41, draw:()=>drawAllTrafficLights(signalState)});
+  drawables.sort((a,b)=>a.depth-b.depth);
+  drawables.forEach(d=>d.draw());
+
+  if(state.showGrid){
+    ctx.strokeStyle='rgba(0,0,0,0.08)';
+    for(let i=-1.8;i<=1.8;i+=0.2){
+      const a=project(i,-1.8), b=project(i,1.8);
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+      const c=project(-1.8,i), d=project(1.8,i);
+      ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(d.x,d.y); ctx.stroke();
+    }
+  }
+}
+
+/* ================= UPDATE LOOP ================= */
+function updateSignalUI(signalState){
+  ['N','S','E','W'].forEach(dir=>{
+    const badge = document.getElementById('badge-'+dir);
+    badge.textContent = signalState[dir];
+    badge.className = 'state-badge '+signalState[dir];
+    const card = document.getElementById('card-'+dir);
+    card.className = 'signal-card is-'+signalState[dir].toLowerCase();
+
+    const queueCount = state.vehicles.filter(v=>v.dir===dir && v.curSpeed<0.0003 && v.t<-0.05).length;
+    state.signals[dir].queue = queueCount;
+    const bar = document.getElementById('queue-'+dir);
+    const pct = Math.min(100, queueCount*10);
+    bar.style.width = pct+'%';
+    
+    // Update queue count display
+    const countEl = document.getElementById('queue-count-'+dir);
+    if(countEl) countEl.textContent = queueCount;
+    bar.className = 'queue-bar' + (queueCount>5?' danger':'');
+  });
+}
+
+function updateStats(){
+  document.getElementById('hud-vehicles').textContent = state.vehicles.length;
+  document.getElementById('hud-passed').textContent = state.vehiclesPassed;
+
+  const mm = Math.floor(state.timeLeft/60);
+  const ss = state.timeLeft%60;
+  document.getElementById('hud-timer').textContent = mm+':'+ss.toString().padStart(2,'0');
+  document.getElementById('timer-pill').classList.toggle('warning', state.timeLeft<60);
+
+  const avgWait = state.waitTimes.length ? (state.waitTimes.reduce((a,b)=>a+b,0)/state.waitTimes.length) : 0;
+  document.getElementById('stat-wait').textContent = avgWait.toFixed(1)+'s';
+
+  const maxQ = Math.max(0,...['N','S','E','W'].map(d=>state.signals[d].queue));
+  document.getElementById('stat-queue').textContent = maxQ+' vehicles';
+
+  const now = state.frame;
+  state.passedInLastMinute = state.passedInLastMinute.filter(f=>now-f<3600);
+  document.getElementById('stat-throughput').textContent = state.passedInLastMinute.length+' / min';
+
+  // Count vehicle types on road
+  const typeCounts = { motorcycle:0, sedan:0, suv:0, bus:0, truck:0, ambulance:0 };
+  state.vehicles.forEach(v=>{ typeCounts[v.spec.type]++; });
+  document.getElementById('count-motorcycle').textContent = typeCounts.motorcycle;
+  document.getElementById('count-sedan').textContent = typeCounts.sedan;
+  document.getElementById('count-suv').textContent = typeCounts.suv;
+  document.getElementById('count-bus').textContent = typeCounts.bus;
+  document.getElementById('count-truck').textContent = typeCounts.truck;
+  document.getElementById('count-ambulance').textContent = typeCounts.ambulance;
+}
+
+let lastSecondTick = 0;
+function gameTick(){
+  if(!state.paused && state.timeLeft>0){
+    state.frame++;
+
+    if(state.frame - lastSecondTick >= 60){
+      lastSecondTick = state.frame;
+      state.timeLeft--;
+      if(state.timeLeft<=0){
+        state.timeLeft=0;
+      }
+    }
+
+    spawnVehicles();
+
+    const signalState = getSignalStates();
+
+    state.vehicles = state.vehicles.filter(v=>{
+      const result = v.update(signalState, state.vehicles);
+      if(result==='PASSED'){
+        state.vehiclesPassed++;
+        state.passedInLastMinute.push(state.frame);
+        beep(900,0.08,0.04);
+        return false;
+      }
+      return true;
+    });
+
+    updateSignalUI(signalState);
+    updateStats();
+    render(signalState);
+  } else {
+    render(getSignalStates());
+  }
+  requestAnimationFrame(gameTick);
+}
+
+gameTick();
+</script>
+</body>
+</html>
